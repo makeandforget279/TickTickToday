@@ -221,12 +221,6 @@ try
 
             if (IsOverdueMoveCandidate(day, today))
             {
-                if (HasDoNotMoveTag(item.Task))
-                {
-                    WriteColoredLine("    Move skipped: the task has the #donotmove tag.", ConsoleColor.Yellow);
-                    continue;
-                }
-
                 if (runOptions.MoveLimit is { } moveLimit && movedTasks.Count(result => result.Success) >= moveLimit)
                 {
                     Console.WriteLine($"    Move skipped: the move={moveLimit} limit was reached.");
@@ -1145,11 +1139,6 @@ static void PrintTask(TaskWithProject item)
     Console.Write($"  - [{startText} -> {dueText}] ");
     WriteColored(TruncateTaskTitle(item.Task.Title), ConsoleColor.Green);
     Console.WriteLine($" ({item.ProjectName}){priority}{tags}");
-}
-
-static bool HasDoNotMoveTag(TickTickTask task)
-{
-    return HasTag(task, "donotmove");
 }
 
 static bool HasCloseWhenOldTag(TickTickTask task)

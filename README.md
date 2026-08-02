@@ -15,7 +15,7 @@ TickTick.
 - Reserves time from a local cron-based periodic schedule.
 - Optionally creates scheduled periodic tasks in TickTick.
 - Supports safe dry runs before any remote changes are made.
-- Uses `#donotmove` and `#closewhenold` tags for per-task control.
+- Uses the `#closewhenold` tag for per-task expiration control.
 - Handles daylight-saving changes in the `Europe/Bucharest` time zone.
 
 ## Requirements
@@ -165,7 +165,6 @@ attributes remain supported with English day names, abbreviations, or numbers.
   `day-end` times in the Bucharest time zone.
 - The original start time is preferred when it is available and unoccupied.
 - Task duration, priority, tags, and content are preserved when dates change.
-- `#donotmove` prevents a task from being rescheduled.
 - `#closewhenold` allows an expired task to be completed automatically when
   `close-when-old=1`.
 - A start-time reminder is set with `TRIGGER:PT0S` after a move.
