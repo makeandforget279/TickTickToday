@@ -33,4 +33,4 @@ jobs:
           Copy-Item .\periodic-tasks.example.xml .\periodic-tasks.xml
           Copy-Item .\ticktick-today.ini .\ticktick-today.local.ini
           (Get-Content .\ticktick-today.local.ini) -replace '^check-config=0$', 'check-config=1' | Set-Content .\ticktick-today.local.ini
-          dotnet run --configuration Release --no-build --project .\TickTickToday.csproj
+          dotnet run --configuration Release --no-build --project .\TickTickToday.csproj -- .\ticktick-today.local.ini

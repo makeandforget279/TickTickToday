@@ -29,7 +29,7 @@ Security vulnerabilities should not be reported in public issues. Follow
 
    To validate configuration without contacting TickTick, set
    `check-config=1` in `ticktick-today.local.ini`, then run
-   `dotnet run --project .\TickTickToday.csproj`.
+   `dotnet run --project .\TickTickToday.csproj -- .\ticktick-today.local.ini`.
 
 5. Describe the reason for the change and how it was verified in the pull
    request.

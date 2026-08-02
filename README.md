@@ -54,25 +54,24 @@ OAuth credentials can be created in the
    contacting TickTick:
 
    ```powershell
-   dotnet run --project .\TickTickToday.csproj
+   dotnet run --project .\TickTickToday.csproj -- .\ticktick-today.local.ini
    ```
 
 4. Set `check-config=0` and `simulate=1`, then preview all actions:
 
    ```powershell
-   dotnet run --project .\TickTickToday.csproj
+   dotnet run --project .\TickTickToday.csproj -- .\ticktick-today.local.ini
    ```
 
 5. When the preview is correct, set `simulate=0` and run normally:
 
    ```powershell
-   dotnet run --project .\TickTickToday.csproj
+   dotnet run --project .\TickTickToday.csproj -- .\ticktick-today.local.ini
    ```
 
-The application accepts an optional INI file path. Without one, it automatically
-loads `ticktick-today.local.ini` when present and otherwise falls back to the
-safe public `ticktick-today.ini`. On Windows, `run-ticktick-today.bat` explicitly
-uses `ticktick-today.ini` by default, accepts a different INI path as its first
+The application requires exactly one INI file path and does not select a
+configuration on its own. On Windows, `run-ticktick-today.bat` uses the safe
+public `ticktick-today.ini` by default, accepts a different INI path as its first
 argument, and keeps the terminal open for review. Use
 `run-ticktick-today-local.bat` to start with `ticktick-today.local.ini` instead.
 
@@ -110,6 +109,8 @@ simulation mode. Keep personal overrides in the ignored
 | `move` | Maximum tasks moved per run. Use `unlimited` for no limit or `0` to list only. |
 | `plan-days` | Maximum number of future days searched for a free slot. |
 | `lookback-days` | Maximum number of past days searched for incomplete tasks. |
+| `day-start` | Earliest start time for a rescheduled task, in `HH:mm` format. |
+| `day-end` | Latest end time for a rescheduled task, in `HH:mm` format; must be later than `day-start`. |
 | `periodic-days` | Number of days populated with periodic tasks; `0` disables creation. |
 | `close-when-old` | Completes expired tasks carrying `#closewhenold`. |
 | `login` | Forces OAuth authorization. |
@@ -160,7 +161,8 @@ attributes remain supported with English day names, abbreviations, or numbers.
 - Today includes only tasks whose due time has already passed.
 - Tasks are considered from yesterday backward, followed by tasks due today.
 - Existing tasks are loaded once and filtered locally.
-- Planning uses 30-minute increments between 08:00 and 22:00 Bucharest time.
+- Planning uses 30-minute increments between the configured `day-start` and
+  `day-end` times in the Bucharest time zone.
 - The original start time is preferred when it is available and unoccupied.
 - Task duration, priority, tags, and content are preserved when dates change.
 - `#donotmove` prevents a task from being rescheduled.
@@ -182,7 +184,7 @@ See [SECURITY.md](SECURITY.md) for private vulnerability reporting guidance.
 ```powershell
 dotnet restore
 dotnet build --configuration Release
-dotnet run --project .\TickTickToday.csproj
+dotnet run --project .\TickTickToday.csproj -- .\ticktick-today.local.ini
 ```
 
 Set `check-config=1` in `ticktick-today.local.ini` for an offline configuration

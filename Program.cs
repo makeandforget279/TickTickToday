@@ -27,13 +27,12 @@ var bucharestTimeZone = GetBucharestTimeZone();
 AppSettings appSettings;
 try
 {
-    if (args.Length > 1)
+    if (args.Length != 1)
     {
-        throw new InvalidOperationException("Usage: TickTickToday [path-to-ini]");
+        throw new InvalidOperationException("Usage: TickTickToday <path-to-ini>");
     }
 
-    var iniPath = args.Length == 1 ? args[0] : null;
-    appSettings = AppSettings.Load(iniPath, DefaultLookbackDays, DefaultPlanDays, DefaultPeriodicDays);
+    appSettings = AppSettings.Load(args[0], DefaultLookbackDays, DefaultPlanDays, DefaultPeriodicDays);
 }
 catch (Exception ex) when (ex is FileNotFoundException or InvalidOperationException or IOException)
 {
@@ -168,7 +167,7 @@ try
     if (runOptions.MoveLimit is not null)
     {
         Console.WriteLine($"Move mode: at most {runOptions.MoveLimit.Value} tasks per run (move={runOptions.MoveLimit.Value}).");
-        Console.WriteLine($"Planning: searching for free slots over the next {runOptions.PlanDays} days.");
+        Console.WriteLine($"Planning: searching for free slots between {runOptions.DayStart:HH:mm} and {runOptions.DayEnd:HH:mm} over the next {runOptions.PlanDays} days.");
     }
     if (runOptions.Simulate)
     {
@@ -234,7 +233,19 @@ try
                     continue;
                 }
 
-                var moveResult = await MoveTaskAsync(today, item, allTasks, periodicTaskRules, accessToken, options, bucharestTimeZone, runStartedAt, runOptions.Simulate, runOptions.PlanDays);
+                var moveResult = await MoveTaskAsync(
+                    today,
+                    item,
+                    allTasks,
+                    periodicTaskRules,
+                    accessToken,
+                    options,
+                    bucharestTimeZone,
+                    runStartedAt,
+                    runOptions.Simulate,
+                    runOptions.PlanDays,
+                    runOptions.DayStart,
+                    runOptions.DayEnd);
                 movedTasks.Add(moveResult);
                 WriteColoredLine(
                     moveResult.Success
@@ -534,7 +545,9 @@ static async Task<TaskMoveResult> MoveTaskAsync(
     TimeZoneInfo bucharestTimeZone,
     DateTimeOffset now,
     bool simulate,
-    int planDays)
+    int planDays,
+    TimeOnly planningDayStart,
+    TimeOnly planningDayEnd)
 {
     var duration = GetTaskDuration(task.Task);
 
@@ -543,16 +556,28 @@ static async Task<TaskMoveResult> MoveTaskAsync(
         duration = TimeSpan.FromMinutes(30);
     }
 
-    if (duration > TimeSpan.FromHours(14))
+    var planningWindow = planningDayEnd.ToTimeSpan() - planningDayStart.ToTimeSpan();
+    if (duration > planningWindow)
     {
-        return TaskMoveResult.Failure(task, $"The task duration is too long for the 08:00-22:00 planning window ({duration}).");
+        return TaskMoveResult.Failure(
+            task,
+            $"The task duration is too long for the {planningDayStart:HH:mm}-{planningDayEnd:HH:mm} planning window ({duration}).");
     }
 
     var candidateDay = day.Date;
 
     for (var searchedDays = 0; searchedDays < planDays; searchedDays++)
     {
-        var candidate = FindFreeSlot(candidateDay, task.Task, allTasks, periodicTaskRules, duration, bucharestTimeZone, now);
+        var candidate = FindFreeSlot(
+            candidateDay,
+            task.Task,
+            allTasks,
+            periodicTaskRules,
+            duration,
+            bucharestTimeZone,
+            now,
+            planningDayStart,
+            planningDayEnd);
 
         if (candidate is not null)
         {
@@ -586,10 +611,12 @@ static DateTimeOffset? FindFreeSlot(
     IReadOnlyCollection<PeriodicTaskRule> periodicTaskRules,
     TimeSpan duration,
     TimeZoneInfo bucharestTimeZone,
-    DateTimeOffset now)
+    DateTimeOffset now,
+    TimeOnly planningDayStart,
+    TimeOnly planningDayEnd)
 {
-    var dayStart = CreateBucharestDateTime(day, new TimeOnly(8, 0), bucharestTimeZone);
-    var dayEnd = CreateBucharestDateTime(day, new TimeOnly(22, 0), bucharestTimeZone);
+    var dayStart = CreateBucharestDateTime(day, planningDayStart, bucharestTimeZone);
+    var dayEnd = CreateBucharestDateTime(day, planningDayEnd, bucharestTimeZone);
     var localNow = TimeZoneInfo.ConvertTime(now, bucharestTimeZone);
 
     if (day.Date == localNow.Date)
@@ -1837,16 +1864,14 @@ sealed record AppSettings(
     string PeriodicTasksFile)
 {
     private const string DefaultPeriodicTasksFileName = "periodic-tasks.xml";
-    private const string LocalIniFileName = "ticktick-today.local.ini";
-    private const string DefaultIniFileName = "ticktick-today.ini";
 
     public static AppSettings Load(
-        string? requestedIniPath,
+        string requestedIniPath,
         int defaultLookbackDays,
         int defaultPlanDays,
         int defaultPeriodicDays)
     {
-        var iniPath = GetIniPath(requestedIniPath);
+        var iniPath = ResolveIniPath(requestedIniPath);
         var iniValues = IniFile.Load(iniPath);
         ValidateIniKeys(iniValues);
 
@@ -1865,6 +1890,8 @@ sealed record AppSettings(
             "move",
             "plan-days",
             "lookback-days",
+            "day-start",
+            "day-end",
             "periodic-days",
             "close-when-old",
             "login",
@@ -1881,41 +1908,20 @@ sealed record AppSettings(
         }
     }
 
-    private static string GetIniPath(string? requestedIniPath)
+    private static string ResolveIniPath(string requestedIniPath)
     {
-        if (!string.IsNullOrWhiteSpace(requestedIniPath))
+        if (string.IsNullOrWhiteSpace(requestedIniPath))
         {
-            var path = Path.GetFullPath(requestedIniPath);
-            if (File.Exists(path))
-            {
-                return path;
-            }
-
-            throw new FileNotFoundException($"INI file was not found: {path}", path);
+            throw new InvalidOperationException("The INI file path cannot be empty.");
         }
 
-        var searchDirectories = new[]
+        var path = Path.GetFullPath(requestedIniPath);
+        if (File.Exists(path))
         {
-            Directory.GetCurrentDirectory(),
-            AppContext.BaseDirectory
-        }
-        .Select(Path.GetFullPath)
-        .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var fileName in new[] { LocalIniFileName, DefaultIniFileName })
-        {
-            foreach (var directory in searchDirectories)
-            {
-                var path = Path.Combine(directory, fileName);
-                if (File.Exists(path))
-                {
-                    return path;
-                }
-            }
+            return path;
         }
 
-        throw new FileNotFoundException(
-            $"Neither {LocalIniFileName} nor {DefaultIniFileName} was found in the current or application directory.");
+        throw new FileNotFoundException($"INI file was not found: {path}", path);
     }
 
     private static string? GetIniString(Dictionary<string, string> values, string key) =>
@@ -2101,22 +2107,36 @@ sealed record RunOptions(
     int? MoveLimit,
     int PlanDays,
     int LookbackDays,
+    TimeOnly DayStart,
+    TimeOnly DayEnd,
     int PeriodicDays,
     bool CloseWhenOld,
     bool ForceLogin,
     bool Simulate,
     bool CheckConfig)
 {
+    private static readonly TimeOnly DefaultDayStart = new(8, 0);
+    private static readonly TimeOnly DefaultDayEnd = new(22, 0);
+
     public static RunOptions Parse(
         IReadOnlyDictionary<string, string> values,
         int defaultLookbackDays,
         int defaultPlanDays,
         int defaultPeriodicDays)
     {
+        var dayStart = ParseTime(values, "day-start", DefaultDayStart);
+        var dayEnd = ParseTime(values, "day-end", DefaultDayEnd);
+        if (dayStart >= dayEnd)
+        {
+            throw new InvalidOperationException("Invalid INI planning window: 'day-start' must be earlier than 'day-end'.");
+        }
+
         return new RunOptions(
             ParseOptionalNonNegativeInt(values, "move"),
             ParsePositiveInt(values, "plan-days", defaultPlanDays),
             ParsePositiveInt(values, "lookback-days", defaultLookbackDays),
+            dayStart,
+            dayEnd,
             ParseNonNegativeInt(values, "periodic-days", defaultPeriodicDays),
             ParseBool(values, "close-when-old", defaultValue: true),
             ParseBool(values, "login", defaultValue: false),
@@ -2161,6 +2181,26 @@ sealed record RunOptions(
         return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0
             ? parsed
             : throw new InvalidOperationException($"Invalid INI value for '{key}': use an integer >= 0.");
+    }
+
+    private static TimeOnly ParseTime(
+        IReadOnlyDictionary<string, string> values,
+        string key,
+        TimeOnly defaultValue)
+    {
+        if (!values.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            return defaultValue;
+        }
+
+        return TimeOnly.TryParseExact(
+            value.Trim(),
+            "HH:mm",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Invalid INI value for '{key}': use HH:mm (for example, 08:00).");
     }
 
     private static bool ParseBool(IReadOnlyDictionary<string, string> values, string key, bool defaultValue)
