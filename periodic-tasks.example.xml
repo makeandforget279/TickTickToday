@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copy this file to periodic-tasks.xml and customize the rules.
+
+  Cron uses five fields: minute hour day-of-month month day-of-week.
+  duration uses HH:mm and must be between 00:01 and 24:00.
+  list is optional and defaults to Inbox.
+  id must be unique and contain 3-32 letters, digits, hyphens, or underscores.
+-->
+<periodicTasks>
+  <!-- Weekdays at 09:00 for 30 minutes. -->
+  <task cron="0 9 * * 1-5" duration="00:30" title="Daily planning" list="Work" id="DAILY-PLANNING" />
+
+  <!-- Every Friday at 18:00 for one hour. -->
+  <task cron="0 18 * * 5" duration="01:00" title="Weekly review" id="WEEKLY-REVIEW" />
+</periodicTasks>

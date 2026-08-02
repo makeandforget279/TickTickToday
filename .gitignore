@@ -1,0 +1,32 @@
+# Build output
+bin/
+obj/
+
+# IDE and user-specific files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Local credentials and OAuth tokens
+.env
+.env.*
+!.env.example
+.ticktick-token.json
+**/.ticktick-token.json
+ticktick-access-token.txt
+ticktick-client-id.txt
+ticktick-client-secret.txt
+ticktick-redirect-uri.txt
+
+# Personal configuration and schedules
+*.local.ini
+periodic-tasks.xml
+
+# Logs and OS metadata
+*.log
+.DS_Store
+Thumbs.db
